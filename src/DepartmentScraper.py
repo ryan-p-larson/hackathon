@@ -72,11 +72,17 @@ class DepartmentScraper:
         course_name = row_a.text
         course_link = 'https://myui.uiowa.edu' + row_a.attrs['href']
 
+
+        good_types = {'Discussion', 'Lecture', 'Lab', 'Independent Study'}
+
         # Type of class
         try:
             course_type = row_title.find_next("em").text
+            if (course_type not in good_types):
+                course_type = None
+
         except:
-            course_type = row.find_next("em").text
+            course_type = None
             
         course_info = {
             'name': course_name,
@@ -84,7 +90,10 @@ class DepartmentScraper:
             'type': course_type
         }
         
-        self.class_pages.append(course_info)
+
+        # dont add discussions
+        if (course_type != 'Discussion'): 
+            self.class_pages.append(course_info)
 
         return 
     
@@ -105,7 +114,7 @@ class DepartmentScraper:
             # this will format and add it
             self.get_row_info(row)
 
-        return 
+        return
         
     
     def start_scrape(self, academicUnitID):
