@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from time import sleep
 
 class CourseScraper:
     def __init__(self, links=None):
@@ -46,15 +47,17 @@ class CourseScraper:
         """
         """
         n_links = len(links)
-        print ("Scraping course pages...")
+        print ("\t Scraping course pages...")
 
         for i in range(n_links):
             course = links[i]
-            print ("{}/{}\t".format(i, n_links) + course['name'] + '...')
+            print ("\t\t{}/{}  ".format(i, n_links) + course['name'] + '...')
 
             try:
                 course_details = self.scrape_course(course)
                 self.add_course(course_details)
+                ###
+                sleep(0.5)
             except Exception as e:
                 print ('\tFAILED', e)
 
