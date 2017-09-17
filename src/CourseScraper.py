@@ -45,12 +45,22 @@ class CourseScraper:
     def scrape_courses(self, links):
         """
         """
-        for course in links:
-            course_details = self.scrape_course(course)
+        n_links = len(links)
+        print ("Scraping course pages...")
+
+        for i in range(n_links):
+            course = links[i]
+            print ("{}/{}\t".format(i, n_links) + course['name'] + '...')
+
+            try:
+                course_details = self.scrape_course(course)
+                self.add_course(course_details)
+            except Exception as e:
+                print ('\tFAILED', e)
+
             # format the details
-            course_details_clean = self.format_course(course_details)
-            
-            self.add_course(course_details_clean)
+            #course_details_clean = self.format_course(course_details)
+            #self.add_course(course_details_clean)
         
         # create dataframe
         self.courses_df = pd.DataFrame(self.courses)
@@ -75,7 +85,8 @@ class CourseScraper:
         details = {
             'Course': course['name'],
             'Type': course['type'],
-            'Name': human_name
+            'Name': human_name,
+            'Link': course['link']
         }
         for div in details_div.find_all("div"):
             # only keep the divs containing info

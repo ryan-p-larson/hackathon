@@ -81,7 +81,10 @@ class DepartmentScraper:
             if (course_type not in good_types):
                 course_type = None
 
-        except:
+        except Exception as e:
+            # testing
+            # it's alright some classes don't have a specification
+            #print (e, course_name, row_a)
             course_type = None
             
         course_info = {
@@ -92,8 +95,8 @@ class DepartmentScraper:
         
 
         # dont add discussions
-        if (course_type != 'Discussion'): 
-            self.class_pages.append(course_info)
+        #if (course_type != 'Discussion'): 
+        self.class_pages.append(course_info)
 
         return 
     
@@ -117,15 +120,17 @@ class DepartmentScraper:
         return
         
     
-    def start_scrape(self, academicUnitID):
+    def start_scrape(self, dept_url):
         """
         """
+        academicUnitID = int(dept_url[-3:])
         # set college
         self.academicUnitID = academicUnitID
-        
+
         # Request and check page
-        page_url = self.create_search_page(1)
-        page = requests.get(page_url)
+        #page_url = self.create_search_page(1)
+
+        page = requests.get(dept_url)
         
         if (page.status_code != 200):
             print ("Couldn't request page, Err: {}".format(page.status_code))
