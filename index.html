@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<meta http-equiv="content-type" content="text/html; charset=UTF8">
+<head>
+	
+	<title>U. Iowa Hackathon</title>
+
+	<!-- CSS -->
+	<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,900" rel="stylesheet">
+
+	<!-- JS -->
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="https://unpkg.com/d3-sankey@0.7.1"></script>
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+
+	<!-- Self Styled -->
+	<style type="text/css">
+	</style>
+</head>
+<body>
+<div class="container container-fluid">
+	<div class="row">
+		<div class="col-xs-3" id="current_course">
+			<div class="row">
+				<h2>Curriculums</h2>
+				<br>
+				<button id='journal'>Journalism</button>
+				<button id='engineer'>Industrial Engineering</button>
+				<button id='compsci'>Computer Science</button>
+				<button id='finance'>Finance</button>
+			</div>
+		</div>
+
+		<div class="col-xs-9" id="chart"></div>
+	</div>
+</div>
+
+<script src="src/functions.js"></script>
+<script>
+$(document).ready(function(){
+	// create indexed class dict
+	window.course_lookup = build_lookup();
+
+	var currics = {
+		'journal': journal_l,
+		'engineer': indust_l,
+		'compsci': cs_l,
+		'finance': finance_l
+	};
+	Object.keys(currics).forEach((d) => {
+		console.log(d);
+		var curric_vals = build_relations(currics[d], window.course_lookup); 
+		d3.select('#' + d).on('click', function() { return draw_chart(curric_vals); });
+	});
+});
+
+
+
+
+</script>
+</body>
