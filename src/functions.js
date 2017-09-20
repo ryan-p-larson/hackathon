@@ -1,90 +1,74 @@
-
 function build_lookup() {
 	var course_lookup = {};
-	d3.json('data/formatted-courses.json', function(err, data) {
+	d3.json('data/indexed-courses.json', function(err, data) {
 		if (err) console.log(err);
 		
-		data.forEach((d) => {
-			courseID = d['courseID'];
+		d3.values(data).forEach((d) => {
+			var courseID = d['courseID'];
 			course_lookup[courseID] = d;
 		});
 
 	});
-
 	return course_lookup;
 }
 
-function build_relations(course_id_list, lookup) {
-	// Edge case
-	if (course_id_list.length === 0) return;
-
-	var valid_nodes = d3.set(Object.keys(lookup));
-	
-	// keep track
-	var remaining_nodes = [];
-	
-	// output
+function build_one_class(courseID, courses) {
 	var nodes = [];
 	var links = [];
 
-	function build_link(id) {
-		var course = lookup[id];
+	var course = courses[courseID];
+	nodes.push(course);
 
-		// conditionally add to our nodes
-		if (nodes.indexOf(course) === -1) nodes.push(course);
-		// filter undefined prereqs
-		var prereqs = course['prereqs'].filter((d) => { return d != undefined; });
+	course['prereqs'].forEach((d) => {
+		var prereqID = d['source'];
+		var prereq = courses[prereqID];
 
-		prereqs.forEach((d) => {
-			var prereq = lookup[d];
-			// check validity
-			if (valid_nodes.has(d)) {
-				// add prereq if it hasn't been
-				if (nodes.indexOf(prereq) === -1) nodes.push(prereq);
-				links.push({
-					'source': prereq,
-					'target': course,
-					'value': 1
-				});
-			};
-
-		});
-	}
-
-	// Instantiate
-	course_id_list.forEach((d) => { 
-		if (valid_nodes.has(d)) remaining_nodes.push(d); 
+		nodes.push(prereq);
+		links.push(d);
 	});
-	while (remaining_nodes.length) {
-		var node = remaining_nodes.pop();
-		build_link(node);
-	};
+	/*console.log(links);
+	course['after'].forEach((d) => {
+		var afterID = d['target'];
+		var after = courses[afterID];
 
-	// make sure no links point us where we dont need to go
-	var local_valid_nodes = d3.set(nodes.map((n) => { return n['courseID']; }));
-
-	links = links.filter((d) => {
-		var target = d['target']['courseID'];
-		var source = d['source']['courseID'];
-		return (local_valid_nodes.has(target)) & (local_valid_nodes.has(source));
+		nodes.push(after);
+		links.push(d);
 	});
+	*/
 
-	return {'nodes': nodes, 'links': links};
+	return {"nodes": nodes, "links": links};
 }
+function draw_one_class(courseID, courses) {
+	var course_graph = build_one_class(courseID, courses);
+	draw_chart(course_graph);
+}
+function draw_classes(course_list, courses) {
+	function merge_class_graphs(list_of_graphs) {
+		var merged = list_of_graphs.reduceRight((a, b) => {
+			return {"nodes": a['nodes'].concat(b['nodes']),
+					"links": a['links'].concat(b['links'])
+				};
+		});
+		return merged;
+	}
+	var course_graphs = course_list.map((d) => { return build_one_class(d, courses); });
+	var final_graph = merge_class_graphs(course_graphs);
+	draw_chart(final_graph);
+} 
 
 function draw_chart(graph) {
 
 	// Set color scales
-	var departments = graph['nodes'].map((d) => { return d['department']; });
-	color_scale.range(departments);
+	//var departments = graph['nodes'].map((d) => { return d['department']; });
+	//color_scale.range(departments);
 
 	// set course numbering scale (y)
-	y_scale.range = d3.range(graph['nodes'], (d) => { return d.course_num; });
+	//y_scale.range = d3.range(graph['nodes'], (d) => { return d.course_num; });
 
 	// clear chart
-	svg.selectAll('.node').remove();
+	svg.selectAll('.nodeG').remove();
 	svg.selectAll('.link').remove();
-	svg.selectAll('.text').remove();
+	svg.selectAll('text').remove();
 
 	// sankey that ish
 	sankey(graph);
@@ -102,7 +86,8 @@ function draw_chart(graph) {
 
 	node = node
 	  .data(graph.nodes)
-	  .enter().append("g");
+	  .enter().append("g")
+	  .attr('class', 'nodeG');
 
 	node.append("rect")
 	  .attr('class', 'node')
@@ -117,7 +102,7 @@ function draw_chart(graph) {
 	  .attr("x", function(d) { return d.x0 - 6; })
 	  .attr("y", function(d) { return (d.y1 + d.y0) / 2; })
 	  .attr("dy", "0.35em")
-	  .attr('class', 'text')
+	  .attr('class', '')
 	  .attr("text-anchor", "end")
 	  .text(function(d) { return d.name; })
 	.filter(function(d) { return d.x0 < width / 2; })
@@ -128,7 +113,30 @@ function draw_chart(graph) {
 	  .text(function(d) { return d.name; });
 } 
 
+// interaction
+function create_dropdown(courses) {
+	var select_div = d3.select('#departmentSelect');
 
+	var departments = d3.nest()
+		.key((d)=>{ return d['department']; })
+		.sortKeys((a, b) => { return d3.ascending(a, b); })
+		.entries(d3.values(courses));
+
+	
+	var options = select_div.selectAll('option')
+		.data(departments)
+		.enter()
+		.append('option')
+		.attr('value', (d)=> { return d.key; })
+		.text((d)=> { return d.key + " (" + d.values.length +")"; });
+
+	select_div.on("change", (d) => {
+		var value = d3.select('#departmentSelect').node().value;
+		draw_department(courses, value);
+	});
+
+	return;
+}
 
 
 // variables
@@ -231,6 +239,20 @@ var indust_l = [
 	'IE:3600'
 ];
 
+function draw_department(courses, department) {
+	var just_dep = d3.values(courses).filter((d) => {
+		return d['department'] === department;
+		})
+		.map((d)=> { return d.courseID; });
+
+	// change curriculum notice
+	d3.select('#currentSelect').text(department);
+
+	// draw the classes
+	draw_classes(just_dep, courses);
+	return;
+}
+
 
 // Chart
 var margin = {top: 20, right: 20, bottom: 20, left: 20},
@@ -248,7 +270,7 @@ var svg = d3.select("#chart").append("svg")
 
 var sankey = d3.sankey()
 	.nodeId(function(d) { return d.courseID; })
-	.nodeAlign(d3.sankeyJustify)
+	.nodeAlign(d3.sankeyCenter)
 	.nodeWidth(15)
 	.nodePadding(10)
 	.size([width, height]);
