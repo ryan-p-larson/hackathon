@@ -2,7 +2,7 @@ function build_lookup() {
 	var course_lookup = {};
 	d3.json('data/indexed-courses.json', function(err, data) {
 		if (err) console.log(err);
-		
+
 		d3.values(data).forEach((d) => {
 			var courseID = d['courseID'];
 			course_lookup[courseID] = d;
@@ -26,16 +26,6 @@ function build_one_class(courseID, courses) {
 		nodes.push(prereq);
 		links.push(d);
 	});
-	/*console.log(links);
-	course['after'].forEach((d) => {
-		var afterID = d['target'];
-		var after = courses[afterID];
-
-		nodes.push(after);
-		links.push(d);
-	});
-	*/
-
 	return {"nodes": nodes, "links": links};
 }
 function draw_one_class(courseID, courses) {
@@ -45,30 +35,59 @@ function draw_one_class(courseID, courses) {
 function draw_classes(course_list, courses) {
 	function merge_class_graphs(list_of_graphs) {
 		var merged = list_of_graphs.reduceRight((a, b) => {
-			return {"nodes": a['nodes'].concat(b['nodes']),
-					"links": a['links'].concat(b['links'])
-				};
+
+			var nodes = a['nodes'].concat(b['nodes']),
+					links = a['links'].concat(b['links']);
+
+			var nodes_uniq = Array.from(new Set(nodes)),
+					links_uniq = Array.from(new Set(links));
+
+			return {"nodes": nodes_uniq,
+							"links": links_uniq
+						};
 		});
 		return merged;
 	}
+
 	var course_graphs = course_list.map((d) => { return build_one_class(d, courses); });
 	var final_graph = merge_class_graphs(course_graphs);
+
+	console.log(final_graph);
+
 	draw_chart(final_graph);
-} 
+}
 
 function draw_chart(graph) {
 
+	if (graph['links'].length === 0) {
+		console.log('No links, skipping');
+		return;
+	}
+
 	// Set color scales
-	//var departments = graph['nodes'].map((d) => { return d['department']; });
-	//color_scale.range(departments);
+	var departments = Array.from(new Set(graph['nodes'].map((d) => { return d['department']; })));
+	color_scale.domain(departments);
 
 	// set course numbering scale (y)
 	//y_scale.range = d3.range(graph['nodes'], (d) => { return d.course_num; });
 
 	// clear chart
-	svg.selectAll('.nodeG').remove();
+	svg.selectAll('.node').remove();
 	svg.selectAll('.link').remove();
 	svg.selectAll('text').remove();
+
+	var link = svg.append("g")
+	    .attr("class", "links")
+	    .attr("fill", "none")
+	    .attr("stroke", "#000")
+	    .attr("stroke-opacity", 0.2)
+	  .selectAll("path");
+	var node = svg.append("g")
+	    .attr("class", "nodes")
+	    .attr("font-family", "sans-serif")
+	    .attr("font-size", 10)
+	  .selectAll("g");
+
 
 	// sankey that ish
 	sankey(graph);
@@ -80,24 +99,22 @@ function draw_chart(graph) {
 	      .attr("d", d3.sankeyLinkHorizontal())
 	      .attr('class', 'link')
 	      .attr("stroke-width", function(d) { return Math.max(1, d.width); });
-
 	link.append("title")
 	  .text(function(d) { return d.source.name + " → " + d.target.name; });
 
 	node = node
 	  .data(graph.nodes)
 	  .enter().append("g")
-	  .attr('class', 'nodeG');
-
+		.filter(function(d) { return (d['targetLinks'].length > 0) || (d['sourceLinks'].length > 0); })
+	  .attr('class', 'node');
 	node.append("rect")
 	  .attr('class', 'node')
 	  .attr("x", function(d) { return d.x0; })
 	  .attr("y", function(d) { return d.y0; })
 	  .attr("height", function(d) { return d.y1 - d.y0; })
 	  .attr("width", function(d) { return d.x1 - d.x0; })
-	  //.attr("fill", function(d) { return color(d.name.replace(/ .*/, "")); })
+	  .attr("fill", function(d) { return color_scale(d.department); })
 	  .attr("stroke", "#000");
-
 	node.append("text")
 	  .attr("x", function(d) { return d.x0 - 6; })
 	  .attr("y", function(d) { return (d.y1 + d.y0) / 2; })
@@ -108,10 +125,9 @@ function draw_chart(graph) {
 	.filter(function(d) { return d.x0 < width / 2; })
 	  .attr("x", function(d) { return d.x1 + 6; })
 	  .attr("text-anchor", "start");
-
 	node.append("title")
-	  .text(function(d) { return d.name; });
-} 
+	  .text(function(d) { return d.name + '\n' + d.department; });
+}
 
 // interaction
 function create_dropdown(courses) {
@@ -122,11 +138,10 @@ function create_dropdown(courses) {
 		.sortKeys((a, b) => { return d3.ascending(a, b); })
 		.entries(d3.values(courses));
 
-	
+
 	var options = select_div.selectAll('option')
 		.data(departments)
-		.enter()
-		.append('option')
+		.enter().append('option')
 		.attr('value', (d)=> { return d.key; })
 		.text((d)=> { return d.key + " (" + d.values.length +")"; });
 
@@ -256,8 +271,8 @@ function draw_department(courses, department) {
 
 // Chart
 var margin = {top: 20, right: 20, bottom: 20, left: 20},
-	width = 960 - margin.left - margin.right,
-    	height = 600 - margin.top - margin.bottom;
+		width = 960 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
 
 var color_scale = d3.scaleOrdinal(d3.schemeCategory10);
 var y_scale = d3.scaleLinear().range([height, 0]);
@@ -272,16 +287,5 @@ var sankey = d3.sankey()
 	.nodeId(function(d) { return d.courseID; })
 	.nodeAlign(d3.sankeyCenter)
 	.nodeWidth(15)
-	.nodePadding(10)
+	.nodePadding(5)
 	.size([width, height]);
-var link = svg.append("g")
-    .attr("class", "links")
-    .attr("fill", "none")
-    .attr("stroke", "#000")
-    .attr("stroke-opacity", 0.2)
-  .selectAll("path");
-var node = svg.append("g")
-    .attr("class", "nodes")
-    .attr("font-family", "sans-serif")
-    .attr("font-size", 10)
-  .selectAll("g");
